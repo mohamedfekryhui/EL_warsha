@@ -5,7 +5,7 @@
 /* تخصيص لون تحديد النصوص باللون الأخضر في جميع أنحاء الموقع */
 ::selection {
   background-color: #10b981; /* emerald-500 */
-  color: #ffffff;
+  color: #ffffffa4;
 }
 
 ::-moz-selection {
