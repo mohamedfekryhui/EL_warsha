@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:5000/api/Auth'; // 👈 تأكد من بورت الباك إند بتاعك
+const API_URL = 'elwarshaback-production.up.railway.app'; // 👈 تأكد من بورت الباك إند بتاعك
 
 export const loginUser = async (username, password) => {
     try {
@@ -11,15 +11,11 @@ export const loginUser = async (username, password) => {
         });
 
         if (!response.ok) {
-            let errorMsg = 'بيانات الدخول غير صحيحة';
-            try {
-                const errorData = await response.json();
-                errorMsg = errorData.message || errorMsg;
-            } catch (e) {}
-            throw new Error(errorMsg);
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'بيانات الدخول غير صحيحة');
         }
 
-        return await response.json(); 
+        return await response.json();
 
     } catch (error) {
         console.error("Auth Service Error:", error.message);
