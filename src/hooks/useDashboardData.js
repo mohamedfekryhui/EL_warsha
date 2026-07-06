@@ -14,9 +14,9 @@ export function useDashboardData() {
     const fetchAllData = async () => {
       try {
         const [profitsRes, doctorsRes, ordersRes] = await Promise.all([
-          fetch(API_ENDPOINTS.profits),
-          fetch(API_ENDPOINTS.doctors),
-          fetch(API_ENDPOINTS.activeOrders),
+          fetch(API_ENDPOINTS.profits).catch(() => ({ json: async () => ({ grossRevenue: 0, netProfit: 0 }) })),
+          fetch(API_ENDPOINTS.doctors).catch(() => ({ json: async () => [] })),
+          fetch(API_ENDPOINTS.activeOrders).catch(() => ({ json: async () => [] })),
         ]);
 
         const profits = await profitsRes.json();

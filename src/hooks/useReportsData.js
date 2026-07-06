@@ -16,8 +16,8 @@ export function useReportsData() {
     try {
       setLoading(true);
       const [docsRes, repRes] = await Promise.all([
-        fetch(API_ENDPOINTS.doctors),
-        fetch(API_ENDPOINTS.doctorsAccounts),
+        fetch(API_ENDPOINTS.doctors).catch(() => ({ json: async () => [] })),
+        fetch(API_ENDPOINTS.doctorsAccounts).catch(() => ({ json: async () => [] })),
       ]);
       setDoctors(await docsRes.json());
       setReports(await repRes.json());

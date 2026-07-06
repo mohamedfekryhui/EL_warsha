@@ -13,7 +13,7 @@ export function useDoctorsData() {
 
   const fetchDoctors = async () => {
     try {
-      const res = await fetch(API_ENDPOINTS.doctors);
+      const res = await fetch(API_ENDPOINTS.doctors).catch(() => ({ json: async () => [] }));
       const data = await res.json();
       setDoctors(data);
     } catch (error) {

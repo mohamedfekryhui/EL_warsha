@@ -24,8 +24,8 @@ export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user, currentBranchId, selectBranch, logout } = useAuth();
 
-  const activeBranchName = user?.branches?.find(b => b.id == currentBranchId)?.name || user?.branches?.find(b => b == currentBranchId) || "الفرع الحالي";
-  const currentBranch = currentBranchId ? activeBranchName : null;
+  const activeBranchName = currentBranchId === "" ? "الرئيسي" : (user?.branches?.find(b => b.id == currentBranchId)?.name || user?.branches?.find(b => b == currentBranchId) || "الفرع الحالي");
+  const currentBranch = (currentBranchId !== null && currentBranchId !== undefined) ? activeBranchName : null;
 
   const clearBranch = () => {
     localStorage.removeItem("elwarsha_current_branch");
@@ -92,7 +92,7 @@ export default function Sidebar() {
     <aside
       className={`${
         isCollapsed ? "w-20 p-4 items-center" : "w-72 p-6"
-      } bg-white dark:bg-[#1E293B] border-l border-gray-100 dark:border-gray-800/60 flex flex-col justify-between min-h-screen transition-all duration-300 shadow-[0_0_20px_rgba(0,0,0,0.02)] dark:shadow-none z-20`}
+      } bg-white dark:bg-[#1E293B] border-l border-gray-100 dark:border-gray-800/60 flex flex-col justify-between h-screen sticky top-0 transition-all duration-300 shadow-[0_0_20px_rgba(0,0,0,0.02)] dark:shadow-none z-20`}
     >
       <div>
         {/* هيدر السايدبار وزرار الثيم وزرار التصغير */}
@@ -147,7 +147,7 @@ export default function Sidebar() {
         </div>
 
         {/* معلومات الفرع الحالي */}
-        {currentBranch && (
+        {currentBranch !== null && (
           isCollapsed ? (
             <button
               onClick={clearBranch}

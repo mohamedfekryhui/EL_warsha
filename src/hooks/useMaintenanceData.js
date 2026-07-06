@@ -17,8 +17,8 @@ export function useMaintenanceData() {
     try {
       setLoading(true);
       const [docsRes, ordersRes] = await Promise.all([
-        fetch(API_ENDPOINTS.doctors),
-        fetch(API_ENDPOINTS.activeOrders),
+        fetch(API_ENDPOINTS.doctors).catch(() => ({ json: async () => [] })),
+        fetch(API_ENDPOINTS.activeOrders).catch(() => ({ json: async () => [] })),
       ]);
       setDoctors(await docsRes.json());
       setActiveOrders(await ordersRes.json());

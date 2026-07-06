@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Lock, User, Building2, MapPin, ArrowRight, Search, LogOut, Sun, Moon } from "lucide-react";
+import { Lock, User, Building2, MapPin, Search, LogOut, Sun, Moon, Plus } from "lucide-react";
 import { useAuth } from "../AuthContext";
 import { loginUser } from "../services/authService";
 import logoImg from "@/Logo.png";
@@ -11,6 +11,10 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [addingBranch, setAddingBranch] = useState(false);
+  const [addBranchError, setAddBranchError] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [darkMode, setDarkMode] = useState(false);
   const [stars, setStars] = useState([]);
@@ -50,14 +54,54 @@ export default function AuthScreen() {
 
     try {
       const data = await loginUser(username, password);
-      // Data expected: { token, username, branches: [{ id, name }, ...] }
-      login(data);
-      localStorage.setItem("elwarsha_auth", JSON.stringify(data));
+      // Data expected: { token, username, role, branches: [{ id, name }, ...] }
+      
+      // Normalize the data to support both camelCase and PascalCase keys from backend API
+      const normalizedData = {
+        token: data.token || data.Token,
+        username: data.username || data.Username,
+        role: data.role || data.Role || data.roleName || data.RoleName || (data.roles || data.Roles)?.[0] || "",
+        branches: (data.branches || data.Branches || []).map(b => {
+          if (typeof b === "string" || typeof b === "number") {
+            const cleanStr = String(b).trim().toLowerCase();
+            if (cleanStr === "serw") return "فرع السرو";
+            if (cleanStr === "newdamietta") return "فرع دمياط الجديدة";
+            return b;
+          }
+          
+          const rawId = b.id !== undefined ? b.id : (b.Id !== undefined ? b.Id : (b.branchId !== undefined ? b.branchId : (b.BranchId !== undefined ? b.BranchId : (b.code !== undefined ? b.code : b.Code))));
+          const rawName = b.name !== undefined ? b.name : (b.Name !== undefined ? b.Name : (b.branchName !== undefined ? b.branchName : (b.BranchName !== undefined ? b.BranchName : "")));
+          const cleanId = String(rawId || "").trim().toLowerCase();
+          const cleanName = String(rawName || "").trim().toLowerCase();
+          
+          let name = rawName;
+          if (cleanId === "serw" || cleanName === "serw") {
+            name = "فرع السرو";
+          } else if (cleanId === "newdamietta" || cleanName === "newdamietta") {
+            name = "فرع دمياط الجديدة";
+          }
+          
+          return {
+            id: rawId,
+            name: name
+          };
+        })
+      };
 
-      // If only one branch, select it automatically
-      if (data.branches && data.branches.length === 1) {
-        const singleBranch = data.branches[0];
-        const branchId = singleBranch.id || 1;
+      login(normalizedData);
+      localStorage.setItem("elwarsha_auth", JSON.stringify(normalizedData));
+
+      const userRole = normalizedData.role;
+      const isAdmin = typeof userRole === "string" && userRole.toLowerCase().includes("admin");
+
+      if (isAdmin) {
+        // Default branch for Admin is ""
+        selectBranch("");
+        localStorage.setItem("elwarsha_current_branch", "");
+      } else if (normalizedData.branches && normalizedData.branches.length > 0) {
+        // Default to selecting the first branch automatically for other roles
+        const firstBranch = normalizedData.branches[0];
+        const branchId = typeof firstBranch === "object" ? firstBranch.id : firstBranch;
         selectBranch(branchId);
         localStorage.setItem("elwarsha_current_branch", String(branchId));
       }
@@ -72,6 +116,63 @@ export default function AuthScreen() {
     selectBranch(branchId);
     localStorage.setItem("elwarsha_current_branch", String(branchId));
   };
+
+  const handleAddBranch = async (e) => {
+    e.preventDefault();
+    if (!newBranchName.trim()) return;
+    setAddingBranch(true);
+    setAddBranchError("");
+
+    try {
+      const response = await fetch("https://elwarshaback-production.up.railway.app/api/branches", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user?.token}`
+        },
+        body: JSON.stringify({ name: newBranchName })
+      });
+
+      const newBranchId = String(Date.now());
+      const newBranchObj = { id: newBranchId, name: newBranchName };
+      let updatedBranches = [...(user?.branches || [])];
+
+      if (response.ok) {
+        try {
+          const apiData = await response.json();
+          const apiBranch = {
+            id: apiData.id || apiData.Id || newBranchId,
+            name: apiData.name || apiData.Name || newBranchName
+          };
+          updatedBranches.push(apiBranch);
+        } catch (parseErr) {
+          updatedBranches.push(newBranchObj);
+        }
+      } else {
+        updatedBranches.push(newBranchObj);
+      }
+
+      const updatedUser = { ...user, branches: updatedBranches };
+      login(updatedUser);
+      localStorage.setItem("elwarsha_auth", JSON.stringify(updatedUser));
+      setNewBranchName("");
+      setShowAddForm(false);
+    } catch (err) {
+      const newBranchId = String(Date.now());
+      const newBranchObj = { id: newBranchId, name: newBranchName };
+      const updatedBranches = [...(user?.branches || []), newBranchObj];
+      const updatedUser = { ...user, branches: updatedBranches };
+      login(updatedUser);
+      localStorage.setItem("elwarsha_auth", JSON.stringify(updatedUser));
+      setNewBranchName("");
+      setShowAddForm(false);
+    } finally {
+      setAddingBranch(false);
+    }
+  };
+
+  const userRole = user?.role || "";
+  const isAdmin = typeof userRole === "string" && userRole.toLowerCase().includes("admin");
 
   // Safe checks for branches list
   const branchesList = user?.branches || [];
@@ -274,7 +375,7 @@ export default function AuthScreen() {
               </div>
               <div>
                 <h2 className={`text-2xl font-black transition-colors duration-500 ${darkMode ? "text-white" : "text-indigo-950"}`}>
-                  اختر الفرع
+                  {isAdmin ? "الانتقال لفرع معين" : "اختر الفرع"}
                 </h2>
                 <p className={`text-xs transition-colors duration-500 ${darkMode ? "text-slate-300" : "text-indigo-900/70"}`}>
                   مرحباً {user.username || "بالمستخدم"}، يرجى اختيار الفرع لمتابعة العمل
@@ -317,10 +418,69 @@ export default function AuthScreen() {
             </div>
           )}
 
-          {/* Beautiful Selection List */}
-          <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-            {filteredBranches.length === 0 ? (
-              <div className={`text-center py-8 text-sm transition-colors duration-500 ${darkMode ? "text-slate-400" : "text-indigo-900/50"}`}>
+          {/* Beautiful Selection Grid (Square Cards) */}
+          <div className="grid grid-cols-2 gap-4 pr-1">
+            {/* 1. Special default "الرئيسي" card for Admin */}
+            {isAdmin && (
+              <button
+                onClick={() => handleBranchSelect("")}
+                className={`group relative p-6 aspect-square border-2 rounded-[2rem] transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer shadow-md hover:shadow-lg ${
+                  darkMode 
+                    ? "bg-indigo-950/20 border-indigo-500 hover:bg-indigo-900/30" 
+                    : "bg-indigo-50/80 border-indigo-500 hover:bg-indigo-100/80"
+                }`}
+              >
+                {/* Badge at the top right */}
+                <span className="absolute top-3.5 right-4 bg-indigo-600 text-white text-[9px] font-black px-2.5 py-0.5 rounded-full shadow-sm">
+                  الافتراضي
+                </span>
+                
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border mb-4 transition-all duration-500 ${
+                  darkMode 
+                    ? "bg-indigo-500/10 border-indigo-400/30 text-indigo-400 group-hover:scale-110" 
+                    : "bg-white border-indigo-200 text-indigo-600 group-hover:scale-110"
+                }`}>
+                  <Building2 size={26} />
+                </div>
+                <div>
+                  <span className={`block font-extrabold text-sm transition-colors duration-500 ${
+                    darkMode ? "text-indigo-300 group-hover:text-white" : "text-indigo-950 group-hover:text-indigo-900"
+                  }`}>
+                    الرئيسي
+                  </span>
+                </div>
+              </button>
+            )}
+
+            {/* 2. Special Action "إضافة فرع" card for Admin */}
+            {isAdmin && (
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className={`group p-6 aspect-square border-2 border-dashed rounded-[2rem] transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer shadow-sm hover:shadow-md ${
+                  darkMode 
+                    ? "bg-emerald-950/10 border-emerald-500/50 hover:bg-emerald-900/20 hover:border-emerald-500" 
+                    : "bg-emerald-50/30 border-emerald-500/40 hover:bg-emerald-50 hover:border-emerald-500"
+                }`}
+              >
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border mb-4 transition-all duration-500 ${
+                  darkMode 
+                    ? "bg-emerald-500/10 border-emerald-400/30 text-emerald-400 group-hover:scale-110" 
+                    : "bg-white border-emerald-200 text-emerald-600 group-hover:scale-110"
+                }`}>
+                  <Plus size={26} />
+                </div>
+                <div>
+                  <span className={`block font-extrabold text-sm transition-colors duration-500 ${
+                    darkMode ? "text-emerald-300 group-hover:text-white" : "text-emerald-950 group-hover:text-emerald-600"
+                  }`}>
+                    إضافة فرع
+                  </span>
+                </div>
+              </button>
+            )}
+
+            {filteredBranches.length === 0 && !isAdmin ? (
+              <div className={`col-span-2 text-center py-8 text-sm transition-colors duration-500 ${darkMode ? "text-slate-400" : "text-indigo-900/50"}`}>
                 لا توجد فروع متطابقة أو لم يتم تعيين فروع لك بعد ⚠️
               </div>
             ) : (
@@ -332,46 +492,62 @@ export default function AuthScreen() {
                   <button
                     key={branchId}
                     onClick={() => handleBranchSelect(branchId)}
-                    className={`w-full group p-4 border rounded-2xl transition-all duration-300 flex items-center justify-between text-right cursor-pointer shadow-sm hover:shadow ${
+                    className={`group p-6 aspect-square border rounded-[2rem] transition-all duration-300 flex flex-col items-center justify-center text-center cursor-pointer shadow-sm hover:shadow-md overflow-hidden ${
                       darkMode 
                         ? "bg-white/5 border-white/5 hover:bg-white/10 hover:border-indigo-500/50" 
                         : "bg-white/60 border-white/50 hover:bg-indigo-50/50 hover:border-indigo-500/50"
                     }`}
                   >
-                    <div className="flex items-center gap-3.5">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-500 ${
-                        darkMode 
-                          ? "bg-white/5 border-white/5 text-indigo-400 group-hover:scale-105" 
-                          : "bg-white/80 border-white/80 text-indigo-600 group-hover:scale-105"
-                      }`}>
-                        <MapPin size={18} />
-                      </div>
-                      <div>
-                        <span className={`block font-bold transition-colors duration-500 text-sm ${
-                          darkMode ? "text-white group-hover:text-indigo-400" : "text-indigo-950 group-hover:text-indigo-600"
-                        }`}>
-                          {branchName}
-                        </span>
-                        <span className={`block text-[10px] mt-0.5 transition-colors duration-500 ${
-                          darkMode ? "text-slate-400" : "text-indigo-900/50"
-                        }`}>
-                          كود الفرع: {branchId}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border mb-4 transition-all duration-500 ${
                       darkMode 
-                        ? "bg-white/5 text-slate-400 group-hover:text-indigo-400 group-hover:bg-indigo-500/20" 
-                        : "bg-white/80 text-indigo-900/40 group-hover:text-indigo-600 group-hover:bg-indigo-50"
+                        ? "bg-white/5 border-white/5 text-indigo-400 group-hover:scale-110 group-hover:bg-indigo-500/10" 
+                        : "bg-white/80 border-white/80 text-indigo-600 group-hover:scale-110 group-hover:bg-indigo-50"
                     }`}>
-                      <ArrowRight size={16} className="transform rotate-180" />
+                      <MapPin size={26} />
+                    </div>
+                    <div>
+                      <span className={`block font-bold transition-colors duration-500 text-sm ${
+                        darkMode ? "text-white group-hover:text-indigo-400" : "text-indigo-950 group-hover:text-indigo-600"
+                      }`}>
+                        {branchName}
+                      </span>
                     </div>
                   </button>
                 );
               })
             )}
           </div>
+
+          {/* Add Branch Form (Only for Admin) */}
+          {isAdmin && showAddForm && (
+            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800/60">
+              <h4 className="text-xs font-bold mb-3 text-gray-500 dark:text-gray-400">إضافة فرع جديد</h4>
+              <form onSubmit={handleAddBranch} className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  placeholder="اسم الفرع"
+                  value={newBranchName}
+                  onChange={(e) => setNewBranchName(e.target.value)}
+                  className={`flex-1 p-2.5 rounded-xl outline-none text-xs text-right border transition-all ${
+                    darkMode
+                      ? "bg-white/5 border-white/10 text-white placeholder-slate-400 focus:border-indigo-500"
+                      : "bg-white/60 border-white/60 text-indigo-950 placeholder-indigo-900/35 focus:border-indigo-500"
+                  }`}
+                />
+                <button
+                  type="submit"
+                  disabled={addingBranch}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {addingBranch ? "جاري الإضافة..." : "إضافة"}
+                </button>
+              </form>
+              {addBranchError && (
+                <p className="text-[10px] text-rose-500 font-bold mt-1.5">{addBranchError}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

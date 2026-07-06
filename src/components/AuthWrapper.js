@@ -15,10 +15,56 @@ export default function AuthWrapper({ children }) {
     if (storedAuth) {
       try {
         const userData = JSON.parse(storedAuth);
-        login(userData); // استرجاع بيانات اليوزر والفروع المتاحة له
+        
+        // Normalize stored session data in case old/unnormalized data is in local storage
+        const normalizedData = {
+          token: userData.token || userData.Token,
+          username: userData.username || userData.Username,
+          role: userData.role || userData.Role || userData.roleName || userData.RoleName || (userData.roles || userData.Roles)?.[0] || "",
+          branches: (userData.branches || userData.Branches || []).map(b => {
+            if (typeof b === "string" || typeof b === "number") {
+              const cleanStr = String(b).trim().toLowerCase();
+              if (cleanStr === "serw") return "فرع السرو";
+              if (cleanStr === "newdamietta") return "فرع دمياط الجديدة";
+              return b;
+            }
+            
+            const rawId = b.id !== undefined ? b.id : (b.Id !== undefined ? b.Id : (b.branchId !== undefined ? b.branchId : (b.BranchId !== undefined ? b.BranchId : (b.code !== undefined ? b.code : b.Code))));
+            const rawName = b.name !== undefined ? b.name : (b.Name !== undefined ? b.Name : (b.branchName !== undefined ? b.branchName : (b.BranchName !== undefined ? b.BranchName : "")));
+            const cleanId = String(rawId || "").trim().toLowerCase();
+            const cleanName = String(rawName || "").trim().toLowerCase();
+            
+            let name = rawName;
+            if (cleanId === "serw" || cleanName === "serw") {
+              name = "فرع السرو";
+            } else if (cleanId === "newdamietta" || cleanName === "newdamietta") {
+              name = "فرع دمياط الجديدة";
+            }
+            
+            return {
+              id: rawId,
+              name: name
+            };
+          })
+        };
 
-        if (storedBranch) {
-          selectBranch(parseInt(storedBranch, 10)); // استرجاع الفرع النشط حالياً
+        login(normalizedData); // استرجاع بيانات اليوزر والفروع المتاحة له
+
+        if (storedBranch !== null && storedBranch !== undefined) {
+          selectBranch(storedBranch === "" ? "" : (isNaN(parseInt(storedBranch, 10)) ? storedBranch : parseInt(storedBranch, 10))); // استرجاع الفرع النشط حالياً
+        } else {
+          // Default to selecting the first branch automatically for all roles if not stored
+          const userRole = normalizedData.role;
+          const isAdmin = typeof userRole === "string" && userRole.toLowerCase().includes("admin");
+          if (isAdmin) {
+            selectBranch("");
+            localStorage.setItem("elwarsha_current_branch", "");
+          } else if (normalizedData.branches && normalizedData.branches.length > 0) {
+            const firstBranch = normalizedData.branches[0];
+            const branchId = typeof firstBranch === "object" ? firstBranch.id : firstBranch;
+            selectBranch(branchId);
+            localStorage.setItem("elwarsha_current_branch", String(branchId));
+          }
         }
       } catch (e) {
         console.error("خطأ في قراءة بيانات الجلسة السابقة:", e);
@@ -41,7 +87,7 @@ export default function AuthWrapper({ children }) {
   }
 
   // 2. إذا لم يقم بتسجيل الدخول، أو قام بالدخول ولم يحدد فرع بعد -> اعرض شاشة الـ Auth (لوجن + اختيار فرع)
-  if (!user || !currentBranchId) {
+  if (!user || (currentBranchId === null || currentBranchId === undefined)) {
     return <AuthScreen />;
   }
 

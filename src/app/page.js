@@ -87,11 +87,11 @@ export default function Home() {
     const fetchData = async () => {
       try {
         const [profRes, docRes, ordRes, todoRes, evRes] = await Promise.all([
-          fetch(API_ENDPOINTS.profits),
-          fetch(API_ENDPOINTS.doctors),
-          fetch(API_ENDPOINTS.activeOrders),
-          fetch(API_ENDPOINTS.todos).catch(() => ({ json: () => [] })), // لو لسه معملتش الكنترولر ميكراشش
-          fetch(API_ENDPOINTS.events).catch(() => ({ json: () => [] })),
+          fetch(API_ENDPOINTS.profits).catch(() => ({ json: async () => ({ grossRevenue: 0, netProfit: 0 }) })),
+          fetch(API_ENDPOINTS.doctors).catch(() => ({ json: async () => [] })),
+          fetch(API_ENDPOINTS.activeOrders).catch(() => ({ json: async () => [] })),
+          fetch(API_ENDPOINTS.todos).catch(() => ({ json: async () => [] })),
+          fetch(API_ENDPOINTS.events).catch(() => ({ json: async () => [] })),
         ]);
 
         setProfits(await profRes.json());
